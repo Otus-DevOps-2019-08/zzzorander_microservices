@@ -79,14 +79,14 @@ zzzorander microservices repository
 - Удаление - `docker-machine rm <имя>`.
 - docker-machine создает хост для докер демона с указываемым образом в `--google-machine-image` 
 - Все докер команды, которые запускаются в той же консоли после  `eval $(docker-machine env <имя>)` работают с удаленным докер демоном в GCP.
-
+```
     export GOOGLE_PROJECT=docker-259815
     docker-machine create --driver google   --google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts   --google-machine-type n1-standard-1    --google-zone europe-west1-b  docker-host
 
     $ docker-machine ls
     NAME          ACTIVE   DRIVER   STATE     URL                        SWARM   DOCKER     ERRORS
     docker-host   -        google   Running   tcp://35.233.127.23:2376           v19.03.5   
-
+```
 - Создаем папку `docker-monolith` и в нем следующие файлы:
 - Dockerfile - текстовое описание нашего образа
 - mongod.conf - подготовленный конфиг для mongodb
@@ -97,27 +97,31 @@ zzzorander microservices repository
 
 - Запускаем `docker build -t reddit:latest .` (точка - путь к текущей директории , `-t` задает контейнеру тэг), чтобы докер собрал нам образ руоводствуясь `Dockerfile`
 - `docker run --name reddit -d --network=host reddit:latest` - создаем контейнер из подготовленного образа и запускаем его.
-- docker-machine ls             
+```
+docker-machine ls             
     NAME          ACTIVE   DRIVER   STATE     URL                        SWARM   DOCKER     ERRORS
     docker-host   -        google   Running   tcp://35.233.127.23:2376           v19.03.5   
-
+```
+```
 - Заходим на `http://35.233.127.23:9292` видим, что ничего не произошло - у нас нет правила фаервола.
 - Создаем правило firewall:
     gcloud compute firewall-rules create reddit-app  --allow tcp:9292    --target-tags=docker-machine    --description="Allow PUMA connections"    --direction=INGRESS          
 - Заходим на `http://35.233.127.23:9292` видим, что все работает.
 
 - Регистрируемся на Docker Hub, логинимся и заливаем туда наш образ:
+```
     docker login
     UserName: zedzzorander
     Password:
     Login Succeeded
     docker tag reddit:latest zedzzorander/otus-reddit:1.0
     docker push zedzzorander/otus-reddit:1.0
-
+```
 - Проверяем, что все загрузилось и работает:
-    docker run --name reddit -d -p 9292:9292 zedzzorander/otus-reddit:1.0
+    `docker run --name reddit -d -p 9292:9292 zedzzorander/otus-reddit:1.0`
 
 - Выполняем проверки:
+ ```
     docker logs reddit -f
     about to fork child process, waiting until server is ready for connections.
     forked process: 8
@@ -134,7 +138,8 @@ zzzorander microservices repository
     D, [2019-11-23T08:47:40.875045 #19] DEBUG -- : MONGODB | There was a change in the members of the 'single' topology.
     * Listening on tcp://0.0.0.0:9292
     Use Ctrl-C to stop
-
+```
+```
     docker exec -it reddit bash
       /# ps aux
       USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
@@ -145,14 +150,17 @@ zzzorander microservices repository
       root        45  0.0  0.0  34420  1768 pts/0    R+   22:15   0:00 ps aux
       /# killall5 1
       /# %  
-
+```
+```
     docker start reddit
       reddit
-
+```
+```
     docker stop reddit && docker rm reddit
       reddit
       reddit
-
+```
+```
     docker run --name reddit --rm -it zedzzorander/otus-reddit:1.0 bash
       root@702785e1dfcb:/# ps aux
       USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
@@ -160,23 +168,27 @@ zzzorander microservices repository
       root        15  0.0  0.0  34420  1564 pts/0    R+   22:19   0:00 ps aux
       root@702785e1dfcb:/# exit
       exit
-
+```
 - Выполняем еще проверки:
+```
     docker inspect zedzzorander/otus-reddit:1.0
         [
             Wall of JSON text
         ]
-
+```
+```
     docker inspect zedzzorander/otus-reddit:1.0 -f '{{.ContainerConfig.Cmd}}'
-    [/bin/sh -c #(nop)  CMD ["/start.sh"]]
-
+    [/bin/sh -c #(nop)  CMD ["/start.sh"]]```
+```
+```
     docker run --name reddit -d -p 9292:9292 zedzzorander/otus-reddit:1.0
     docker exec -it reddit bash
         mkdir /test1234
         touch /test1234/testfile
         rmdir /opt
         exit
-
+```
+```
     docker diff reddit
     C /var
     C /var/lib
@@ -196,9 +208,12 @@ zzzorander microservices repository
     C /tmp
     A /tmp/mongodb-27017.sock
     D /opt
-
+```
+```
     docker stop reddit && docker rm reddit
-
+```    
+```
     docker run --name reddit --rm -it zedzzorander/otus-reddit:1.0 bash
       root@6431531ac799:/# ls /
       bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  reddit  root  run  sbin  srv  start.sh  sys  tmp  usr  var
+```
