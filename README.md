@@ -102,10 +102,12 @@ docker-machine ls
     NAME          ACTIVE   DRIVER   STATE     URL                        SWARM   DOCKER     ERRORS
     docker-host   -        google   Running   tcp://35.233.127.23:2376           v19.03.5   
 ```
-```
+
 - Заходим на `http://35.233.127.23:9292` видим, что ничего не произошло - у нас нет правила фаервола.
 - Создаем правило firewall:
+```
     gcloud compute firewall-rules create reddit-app  --allow tcp:9292    --target-tags=docker-machine    --description="Allow PUMA connections"    --direction=INGRESS          
+```
 - Заходим на `http://35.233.127.23:9292` видим, что все работает.
 
 - Регистрируемся на Docker Hub, логинимся и заливаем туда наш образ:
