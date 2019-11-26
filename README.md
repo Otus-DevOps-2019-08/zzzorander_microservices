@@ -108,6 +108,7 @@ docker-machine ls
 ```
     gcloud compute firewall-rules create reddit-app  --allow tcp:9292    --target-tags=docker-machine    --description="Allow PUMA connections"    --direction=INGRESS          
 ```
+
 - Заходим на `http://35.233.127.23:9292` видим, что все работает.
 
 - Регистрируемся на Docker Hub, логинимся и заливаем туда наш образ:
@@ -119,6 +120,7 @@ docker-machine ls
     docker tag reddit:latest zedzzorander/otus-reddit:1.0
     docker push zedzzorander/otus-reddit:1.0
 ```
+
 - Проверяем, что все загрузилось и работает:
     `docker run --name reddit -d -p 9292:9292 zedzzorander/otus-reddit:1.0`
 
@@ -141,6 +143,7 @@ docker-machine ls
     * Listening on tcp://0.0.0.0:9292
     Use Ctrl-C to stop
 ```
+
 ```
     docker exec -it reddit bash
       /# ps aux
@@ -153,15 +156,18 @@ docker-machine ls
       /# killall5 1
       /# %  
 ```
+
 ```
     docker start reddit
       reddit
 ```
+
 ```
     docker stop reddit && docker rm reddit
       reddit
       reddit
 ```
+
 ```
     docker run --name reddit --rm -it zedzzorander/otus-reddit:1.0 bash
       root@702785e1dfcb:/# ps aux
@@ -171,6 +177,7 @@ docker-machine ls
       root@702785e1dfcb:/# exit
       exit
 ```
+
 - Выполняем еще проверки:
 ```
     docker inspect zedzzorander/otus-reddit:1.0
@@ -178,10 +185,12 @@ docker-machine ls
             Wall of JSON text
         ]
 ```
+
 ```
     docker inspect zedzzorander/otus-reddit:1.0 -f '{{.ContainerConfig.Cmd}}'
     [/bin/sh -c #(nop)  CMD ["/start.sh"]]```
 ```
+
 ```
     docker run --name reddit -d -p 9292:9292 zedzzorander/otus-reddit:1.0
     docker exec -it reddit bash
@@ -190,6 +199,7 @@ docker-machine ls
         rmdir /opt
         exit
 ```
+
 ```
     docker diff reddit
     C /var
@@ -211,9 +221,11 @@ docker-machine ls
     A /tmp/mongodb-27017.sock
     D /opt
 ```
+
 ```
     docker stop reddit && docker rm reddit
 ```    
+
 ```
     docker run --name reddit --rm -it zedzzorander/otus-reddit:1.0 bash
       root@6431531ac799:/# ls /
