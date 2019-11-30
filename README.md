@@ -262,7 +262,7 @@ docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:1.0
 ```
 - Создал пост - Работает!
 
-## hw *
+## HW * --env 
 - Запускаем контейнеры сосвоими алиасами:
 ```
 docker network create reddit
@@ -273,4 +273,47 @@ docker run -d --network=reddit -p 9292:9292 --env POST_SERVICE_HOST=my-post --en
 ```
 - Работает!
 
+## hw images
+- О - оптимизации. Перезаписываем  Dockerfile в папке src/ui/: `wget -O Dockerfile https://raw.githubusercontent.com/express42/otus-snippets/master/hw-16/%D0%A1%D0%B5%D1%80%D0%B2%D0%B8%D1%81%20ui%20-%20%D1%83%D0%BB%D1%83%D1%87%D1%88%D0%B0%D0%B5%D0%BC%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B7`
+- Пересобираем образ: 
+```
+% docker build -t zedzzorander/ui:2.0 ./ui
+Sending build context to Docker daemon  30.72kB                                                                                                                                                             
+Step 1/13 : FROM ubuntu:16.04                                                                                                                                                                               
+ ---> 5f2bf26e3524 
+...
+Removing intermediate container f11c6c9eb063
+ ---> 7df67873e2a6
+Successfully built 7df67873e2a6
+Successfully tagged zedzzorander/ui:1.0
 
+```
+- Сборка началась со второго шага, поскольку образ ubuntu:16.04 у нас уже загружен.
+
+
+## hw volumes
+- `docker kill $(docker ps -q)`
+- Запукаем приложения заново:
+```
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+docker run -d --network=reddit --network-alias=post zedzzorander/post:1.0
+docker run -d --network=reddit --network-alias=comment zedzzorander/comment:1.0
+docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
+```
+- Да, пост пропал, значит надо делать volume подключить его к контейнеру с БД и хранить базу данных на нем.
+```
+docker volume create reddit_db
+```
+- Убиваем запущеные контейнеры `docker kill $(docker ps -q)`
+- Запускаем заново, но уже с volume
+```
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+docker run -d --network=reddit --network-alias=post zedzzorander/post:1.0
+docker run -d --network=reddit --network-alias=comment zedzzorander/comment:1.0
+docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
+```
+- Написали пост, перезапустили.
+- Проверям - пост на месте. Отлично!
+
+## HW* - images
+- Соберем образы на базе alpine
