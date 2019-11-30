@@ -231,8 +231,9 @@ docker-machine ls
       root@6431531ac799:/# ls /
       bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  reddit  root  run  sbin  srv  start.sh  sys  tmp  usr  var
 ```
-# Docker-microservices
-## hw
+# Docker-3
+[![Build Status](https://travis-ci.com/Otus-DevOps-2019-08/zzzorander_microservices.svg?branch=docker-3)](https://travis-ci.com/Otus-DevOps-2019-08/zzzorander_microservices)
+## HW
 - Подключился к хосту docker-host развернутому на предыдущем заниятии в GCP командой `eval $(docker-machine env docker-host)`
 - Скачал архив `microservices.zip`  и распаковал его в папку с репозиторием. После распаковки архив удалил.
 - Переименовал папку `reddit-microservices` в `src`
@@ -273,7 +274,7 @@ docker run -d --network=reddit -p 9292:9292 --env POST_SERVICE_HOST=my-post --en
 ```
 - Работает!
 
-## hw images
+## HW images
 - О - оптимизации. Перезаписываем  Dockerfile в папке src/ui/: `wget -O Dockerfile https://raw.githubusercontent.com/express42/otus-snippets/master/hw-16/%D0%A1%D0%B5%D1%80%D0%B2%D0%B8%D1%81%20ui%20-%20%D1%83%D0%BB%D1%83%D1%87%D1%88%D0%B0%D0%B5%D0%BC%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B7`
 - Пересобираем образ: 
 ```
@@ -291,7 +292,7 @@ Successfully tagged zedzzorander/ui:1.0
 - Сборка началась со второго шага, поскольку образ ubuntu:16.04 у нас уже загружен.
 
 
-## hw volumes
+## HW тома
 - `docker kill $(docker ps -q)`
 - Запукаем приложения заново:
 ```
@@ -315,7 +316,7 @@ docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
 - Написали пост, перезапустили.
 - Проверям - пост на месте. Отлично!
 
-## HW* - images
+## HW* оптимизация размера образов
 - Собраны образы для `ui` и `comment` на базе `ruby:2.3-alpine`
 - Изменены устаревшие директивы `bundler --no-ri --no-rdoc` на `bundler --no-document`
 - Добавлена директива очистки кэша менеджера пакетов.
