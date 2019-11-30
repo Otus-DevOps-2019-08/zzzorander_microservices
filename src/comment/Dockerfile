@@ -1,5 +1,5 @@
-FROM ruby:2.2
-RUN apt-get update -qq && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
+FROM ruby:2.3-alpine
+RUN apk update && apk add build-base && rm -rf /var/cache/apk/* && gem install bundler --no-document
 
 ENV APP_HOME /app
 RUN mkdir $APP_HOME

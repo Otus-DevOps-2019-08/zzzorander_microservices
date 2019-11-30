@@ -316,4 +316,7 @@ docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
 - Проверям - пост на месте. Отлично!
 
 ## HW* - images
-- Соберем образы на базе alpine
+- Собраны образы для `ui` и `comment` на базе `ruby:2.3-alpine`
+- Изменены устаревшие директивы `bundler --no-ri --no-rdoc` на `bundler --no-document`
+- Добавлена директива очистки кэша менеджера пакетов.
+- Размер образа уменьшился с 771MB до 298MB
