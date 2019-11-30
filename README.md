@@ -231,3 +231,46 @@ docker-machine ls
       root@6431531ac799:/# ls /
       bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  reddit  root  run  sbin  srv  start.sh  sys  tmp  usr  var
 ```
+# Docker-microservices
+## hw
+- Подключился к хосту docker-host развернутому на предыдущем заниятии в GCP командой `eval $(docker-machine env docker-host)`
+- Скачал архив `microservices.zip`  и распаковал его в папку с репозиторием. После распаковки архив удалил.
+- Переименовал папку `reddit-microservices` в `src`
+- Состав папки:
+```
+- post-py-сервис отвечающий за написание постов
+- comment-сервис отвечающий за написание комментариев
+- ui-веб-интерфейс,работающий с другими сервисами
+
+```
+- Содал Dockerfile для каждого микросервиса в репозитории
+- Собираем образы:
+```
+   docker pull mongo:latest
+   docker build -t zedzzorander/post:1.0 ./post-py
+   docker build -t zedzzorander/comment:1.0 ./comment
+   docker build -t zedzzorander/ui:1.0 ./ui
+```
+- Добавил в `src/post-py/Dockerfile` установку build-base мета-пакета, поскольку без него не ставятся зависимости, учел некторые рекомендации из лучшех практик.
+- Создал сеть `reddit` и запустил контейнеры:
+```
+docker network create reddit
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+docker run -d --network=reddit --network-alias=post zedzzorander/post:1.0
+docker run -d --network=reddit --network-alias=comment zedzzorander/comment:1.0
+docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:1.0
+```
+- Создал пост - Работает!
+
+## hw *
+- Запускаем контейнеры сосвоими алиасами:
+```
+docker network create reddit
+docker run -d --network=reddit --network-alias=my-post_db --network-alias=my-comment_db mongo:latest
+docker run -d --network=reddit --network-alias=my-post --env POST_DATABASE_HOST=my-post_db zedzzorander/post:1.0 
+docker run -d --network=reddit --network-alias=my-comment --env COMMENT_DATABASE_HOST=my-comment_db zedzzorander/comment:1.0 
+docker run -d --network=reddit -p 9292:9292 --env POST_SERVICE_HOST=my-post --env COMMENT_SERVICE_HOST=my-comment zedzzorander/ui:1.0 
+```
+- Работает!
+
+
