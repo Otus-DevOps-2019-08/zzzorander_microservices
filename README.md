@@ -321,3 +321,230 @@ docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
 - Изменены устаревшие директивы `bundler --no-ri --no-rdoc` на `bundler --no-document`
 - Добавлена директива очистки кэша менеджера пакетов.
 - Размер образа уменьшился с 771MB до 298MB
+
+# Docker-4
+## Сети и Docker
+- Используем готовый контейнер, чтобы изучить как работают сети.
+- Первый прогон -network none:
+```
+docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
+...
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+```
+- Второй запуск --network host
+```
+docker run -ti --rm --network host joffotron/docker-net-tools -c ifconfig
+...
+br-ebe0446d49fa Link encap:Ethernet  HWaddr 02:42:F0:04:CF:12  
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:f0ff:fe04:cf12%32543/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:210 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:224 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:63595 (62.1 KiB)  TX bytes:51610 (50.4 KiB)
+
+docker0   Link encap:Ethernet  HWaddr 02:42:BF:EF:01:C9  
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:bfff:feef:1c9%32543/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:31786 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:38645 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:2507896 (2.3 MiB)  TX bytes:835278696 (796.5 MiB)
+
+ens4      Link encap:Ethernet  HWaddr 42:01:0A:84:00:02  
+          inet addr:10.132.0.2  Bcast:10.132.0.2  Mask:255.255.255.255
+          inet6 addr: fe80::4001:aff:fe84:2%32543/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1460  Metric:1
+          RX packets:317135 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:269444 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:1869597769 (1.7 GiB)  TX bytes:266939337 (254.5 MiB)
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1%32543/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:897237 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:897237 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:122021654 (116.3 MiB)  TX bytes:122021654 (116.3 MiB)
+```
+- Интерфейсы идентичны интерфесам docker-host
+- Запустил несколько раз команду `docker run --network host -d nginx`
+- `docker ps` выдает в списке всего один контейнер.
+- `sudo ln -s /var/run/docker/netns /var/run/netns` -  делаем на docker-host. Теперь можно сделать `docker-machine ssh docker-host`, а потом `sudo ip netns monitor` и наблюдать что происходит с сетевыми неймспейсами на хосте или пролистать их командой `sudo ip netns list`
+- При создании контейнера из вышерассмотреных создается новый неймспейс, а после удаление - удаляется в независимости от типа указываемого в  `--network`
+### Bridge networks
+- Создаем новый мост - `docker network create reddit --driver bridge` (`--driver bridge` - используется по умолчанию, поэтому это значение в команде можно опускать)
+- Запускаю проект и с использованием bridge сети ( как и до этого, но уже осознано ):
+```
+docker run -d --network=reddit -v reddit_db:/data/db mongo:latest
+docker run -d --network=reddit zedzzorander/post:1.0
+docker run -d --network=reddit zedzzorander/comment:1.0
+docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
+```
+- Спотыкаюсь об отсутствие алиасов, исправляю их:
+```
+docker kill $(docker ps -q)
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+docker run -d --network=reddit --network-alias=post zedzzorander/post:1.0
+docker run -d --network=reddit --network-alias=comment zedzzorander/comment:1.0
+docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
+```
+- Есть два варианта для имен - можно назначить одно имя директивой `--name NAME` или несколько через уже знакомую `--network-alias`
+- Заходим на наш сайт - все работает (ура!)
+### MultiBridge - запускаем два моста и добавляем часть контейнеров в оба.
+- У нас будет `front_net` (ui, comment, post) и `back_net` (db, comment, post)
+- Расчищу место - `docker kill $(docker ps -q)`
+- Создам сети:
+```
+docker network create back_net --subnet=10.0.2.0/24 
+docker network create front_net --subnet=10.0.1.0/24
+```
+- Создам машины:
+```
+docker run -d --network=front_net -p 9292:9292 --name ui  zedzzorander/ui:1.0
+docker run -d --network=back_net --name comment  zedzzorander/comment:1.0
+docker run -d --network=back_net --name post  zedzzorander/post:1.0
+docker run -d --network=back_net --name mongo_db --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+```
+- Захожу на страничку нашего приложения и вижу, что ничего не работает. Это потому что машины в разных мостах и не видят друг-друга, потому что докер не может подключит больше одной сети при инициализации контейнера. Нам придется делать это самим.
+- Исправляю это досадную недоработку, мужественным копипастом из методички:
+```
+docker network connect front_net post 
+docker network connect front_net comment 
+```
+- Проверяю - все работает (ура!)
+
+- Подключаюсь к нашему хосту с докером, и устанавливаю необходмые утилиты:
+```
+docker-machine ssh docker-host
+sudo apt-get update && sudo apt-get install bridge-utils
+```
+- Изучаю получившиеся в результате моей деятельности сети:
+```
+docker-user@docker-host:~$ sudo docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+96de712b0fcb        back_net            bridge              local
+a84e556505d0        bridge              bridge              local
+dd6963210e9f        front_net           bridge              local
+4a54a878b30f        host                host                local
+fbc791e848a0        none                null                local
+ebe0446d49fa        reddit              bridge              local
+```
+- Использую команду `ifconfig | grep br`, чтобы отобразить доступные нам bridge
+```
+ifconfig | grep br
+br-96de712b0fcb Link encap:Ethernet  HWaddr 02:42:da:af:a3:93  
+br-dd6963210e9f Link encap:Ethernet  HWaddr 02:42:47:57:bc:8c  
+br-ebe0446d49fa Link encap:Ethernet  HWaddr 02:42:f0:04:cf:12  
+```
+- Посмотрим, какие инерфейсы учавствуют в bridge
+```
+brctl show br-96de712b0fcb
+bridge name     bridge id               STP enabled     interfaces
+br-96de712b0fcb         8000.0242daafa393       no              veth049f3ba
+                                                        veth385559e
+                                                        veth63adf6c
+```
+- Теперь посмотрим на `iptables`
+```
+$ sudo iptables -nL -t nat
+Chain PREROUTING (policy ACCEPT)
+target     prot opt source               destination         
+DOCKER     all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination         
+DOCKER     all  --  0.0.0.0/0           !127.0.0.0/8          ADDRTYPE match dst-type LOCAL
+
+Chain POSTROUTING (policy ACCEPT)
+target     prot opt source               destination         
+MASQUERADE  all  --  10.0.1.0/24          0.0.0.0/0           #
+MASQUERADE  all  --  10.0.2.0/24          0.0.0.0/0           # Правила, отвещающие за выход во внешнюю сеть.
+MASQUERADE  all  --  172.18.0.0/16        0.0.0.0/0           #
+MASQUERADE  all  --  172.17.0.0/16        0.0.0.0/0           #
+MASQUERADE  tcp  --  10.0.1.2             10.0.1.2             tcp dpt:9292
+
+Chain DOCKER (2 references)
+target     prot opt source               destination         
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0           
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0           
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0           
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0           
+DNAT       tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:9292 to:10.0.1.2:9292 # Публикация порта для нашего UI
+
+```
+- Посмотрю на docker-proxy:
+```
+$ ps ax | grep docker-proxy
+ 1839 ?        Sl     0:00 /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 9292 -container-ip 10.0.1.2 -container-port 9292
+10993 pts/0    S+     0:00 grep --color=auto docker-proxy
+```
+## Docker Compose
+### Проблемы решаемые композом
+- Одно приложение состоит из множества контейнеров/сервисов
+- Один контейнер зависит от другого
+- Порядок запуска имеет значение
+- docker build/run/create ... (долго и много)
+### Описание
+- Отдельная утилита
+- Декларативное описание в YAML формате
+- Управление многоконтейнерными приложениями
+### Установка
+- Не буду скромничать, и поставлю его system-wide 
+```
+sudo pip3 install docker-compose
+```
+### Настройка
+- Загрузим из гиста `wget -O docker-compose.yml https://raw.githubusercontent.com/express42/otus-snippets/master/hw-17/docker-compose.yml`
+- docker-compose поддерживает интерполяцию переменных окружения, и мы будет это использовать
+```
+export USERNAME=zedzzorander
+docker-compose up -d
+docker-compose ps
+```
+- В итоге получили такой вывод
+```
+docker-compose ps           
+    Name                  Command             State           Ports         
+----------------------------------------------------------------------------
+src_comment_1   puma                          Up                            
+src_post_1      python3 post_app.py           Up                            
+src_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp             
+src_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
+```
+- Заходим на страничку сервиса - все работает.
+
+## Несколько сетей в compose и параметризация через файл .env
+- В раздел `networks:` добавил сети `front_net` и `back_net`
+- Дописал для каждого контейнера в его разделе `networks` соответствующие сети, аналогично уже проделаной работы в докере
+- Создал в папке `src/` файл `.env` и заполнил его значениями. Прописал переменные в `docker-compose.yml`
+- Сделал `docker-compose up -d` 
+- Сделал `docker-compose ps`:
+```
+    Name                  Command             State           Ports         
+----------------------------------------------------------------------------
+src_comment_1   puma                          Up                            
+src_post_1      python3 post_app.py           Up                            
+src_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp             
+src_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
+```
+- Зашел на страничку сервиса - все работает.
+
+## Как поименовать проект нужным именем
+- Можно добавить переменную окружения `COMPOSE_PROJECT_NAME`, экспортировав ее, или добавив в `.env` файл
+- Можно стартовать `dockeer-compose -p my-project-name up` 
+
+## HW*
