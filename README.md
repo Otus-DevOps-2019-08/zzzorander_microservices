@@ -323,6 +323,7 @@ docker run -d --network=reddit -p 9292:9292 zedzzorander/ui:2.0
 - Размер образа уменьшился с 771MB до 298MB
 
 # Docker-4
+[![Build Status](https://travis-ci.com/Otus-DevOps-2019-08/zzzorander_microservices.svg?branch=docker-4)](https://travis-ci.com/Otus-DevOps-2019-08/zzzorander_microservices)
 ## Сети и Docker
 - Используем готовый контейнер, чтобы изучить как работают сети.
 - Первый прогон -network none:
