@@ -555,3 +555,79 @@ command: puma -w 2 --debug
 ```
 - Так же композер позволяет смонтировать папки машины-хоста в виде тома в контейнер. Для этого я добавлю в нужные контейнеры риздел директив `volumes:` и опишу в нем пути относительно текущего размещения `docker-compose.yml`
 - Подробная информация о директивах и синтаксисе находится здесь https://docs.docker.com/compose/compose-file/
+
+# gitlab-ci-1
+
+## Создаем виртуальную машину в GCP
+```
+export GOOGLE_PROJECT=docker-259815
+docker-machine create --driver google   --google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts   --google-machine-type n1-standard-1  --google-disk-size 50 --google-zone europe-west1-b  gitlab-ci
+```
+- Заходим туда `docker-machine ssh gitlab-ci` и грубо, по мужицки, готовим папочки для исталяции, грузим docker-compose.yml и запускаем процесс сборки.
+```
+apt-get update && apt-get install docker-compose
+mkdir -p /srv/gitlab/{config,data,logs}
+cd /srv/gitlab/
+wget -O docker-compose.yml https://gist.githubusercontent.com/Nklya/c2ca40a128758e2dc2244beb09caebe1/raw/e9ba646b06a597734f8dfc0789aae79bc43a7242/docker-compose.yml
+sed -i 's/<YOUR-VM-IP>/35.233.127.23/g' docker-compose.yml
+docker-compose up -d 
+```
+- Захожу на адрес моего гитлаба, ввожу логин и пароль администратора ~~, записываю его на бумажке и клею на монитор~~
+- Захожу в админку и выключаю регистрацию пользователей.
+- Создаю группу homework
+- Создаю проект example
+- Пушу в гитлаб репу ~~Вот тут-то и пригодится пароль на листочке!~~
+```
+git checkout -b gitlab-ci-1
+git remote add gitlab http://35.233.127.23/homework/example.git
+git push gitlab gitlab-ci-1
+```
+- Добавляю `.gitlab-ci.yml` из гиста:
+```
+wget https://gist.githubusercontent.com/Nklya/ab352648c32492e6e9b32440a79a5113/raw/265f383a48b980ac6efd9b4c23f2b68a6bf70ce5/.gitlab-ci.yml
+```
+- Делаем коммит и пушим в нашу гитлабовскую репу:
+```
+git add .girlab-ci.yml
+git commit -m 'add pipeline defenition'
+git push gitlab gitlab-ci-1
+```
+- Перехожу в раздел CI/CD и виджу, что трубопровод готов к запуску, но у меня нет ранера чтобы все заработало.
+- Иду в раздел настроек нашего проекта и компирую токен для ранера из Project>Settings>CI/CD>Runners[expand]
+- Добавляю ранер:
+```
+docker run -d --name gitlab-runner --restart always \ 
+ -v /srv/gitlab-runner/config:/etc/gitlab-runner \ 
+ -v /var/run/docker.sock:/var/run/docker.sock \ 
+ gitlab/gitlab-runner:latest
+```
+- Регистрирую ранер:
+```
+ docker exec -it gitlab-runner gitlab-runner register --run-untagged --locked=false
+ Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/): 
+ http://<YOUR-VM-IP>/ 
+ Please enter the gitlab-ci token for this runner: 
+ <TOKEN> 
+ Please enter the gitlab-ci description for this runner: 
+ [38689f5588fe]: my-runner
+ Please enter the gitlab-ci tags for this runner (comma separated): 
+ linux,xenial,ubuntu,docker 
+ Please enter the executor:  
+ docker 
+ Please enter the default Docker image (e.g. ruby:2.1): 
+ alpine:latest 
+ Runner registered successfully.
+```
+- Пайплайн заработал. Ура!
+- Добавляем код проекта к репозиторию
+```
+git clone https://github.com/express42/reddit.git && rm -rf ./reddit/.git 
+git add reddit/ 
+git commit -m “Add reddit app”
+git push gitlab gitlab-ci-1
+```
+- Изменяю пайплайн и добавляю `reddit/simpletest.rb`
+- Добавляю в `reddit/Gemfile` строку `gem rack-test`
+- pipeline заработал
+
+### Делаем DEV-окружение
