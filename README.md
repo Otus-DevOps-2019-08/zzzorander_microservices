@@ -631,3 +631,14 @@ git push gitlab gitlab-ci-1
 - pipeline заработал
 
 ### Делаем DEV-окружение
+- Переименовываем deploy в review
+- Добавляем описание review стадии.
+```
+deploy_dev_job:
+  stage: review
+  script:
+    - echo 'Deploy'
+  environment:
+    name: dev
+    url: http://dev.example.com
+```
