@@ -629,11 +629,11 @@ git push gitlab gitlab-ci-1
 - Изменяю пайплайн и добавляю `reddit/simpletest.rb`
 - Добавляю в `reddit/Gemfile` строку `gem rack-test`
 - pipeline заработал
-- Кстати Environments  переехали в раздел Operations
+- Кстати, Environments переехали из CI в раздел Operations
 
 ### Делаем DEV-окружение
-- Переименовываем deploy в review
-- Добавляем описание review стадии.
+- Переименовываю deploy в review
+- Добавляю описание review стадии.
 ```
 deploy_dev_job:
   stage: review
@@ -643,10 +643,10 @@ deploy_dev_job:
     name: dev
     url: http://dev.example.com
 ```
-- Добавляем в раздел `stages` пункты `stage` & `production`, и в дописываем описание стадий.
-- Добавляем диферениацию по тагам ( в кадую старию опцию `only:` с регекспом тэга )
+- Добавляю в раздел `stages` пункты `stage` & `production`, и в дописываем описание стадий.
+- Добавляю диферениацию по тагам ( в кадую старию опцию `only:` с регекспом тэга )
 - Теперь, если коммит делается без тега, для него запускается ограниченный пайплайн, без stage и production окружений.
-- Так пушим с тегом:
+- Так пушу с тегом:
 ```
 git commit -a -m ‘#4 add logout button to profile page’
 git tag 2.4.10
@@ -666,4 +666,4 @@ branch review:
    except:
      - master 
 ```
-- Теперь каждая ветка кроме master будет определяться как овое окружение.
+- Теперь каждая ветка кроме master будет определяться как новое окружение.
