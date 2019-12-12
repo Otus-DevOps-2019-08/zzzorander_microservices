@@ -619,7 +619,7 @@ docker run -d --name gitlab-runner --restart always \
  Runner registered successfully.
 ```
 - Пайплайн заработал. Ура!
-- Добавляем код проекта к репозиторию
+- Добавляю код проекта к репозиторию
 ```
 git clone https://github.com/express42/reddit.git && rm -rf ./reddit/.git 
 git add reddit/ 
@@ -629,6 +629,7 @@ git push gitlab gitlab-ci-1
 - Изменяю пайплайн и добавляю `reddit/simpletest.rb`
 - Добавляю в `reddit/Gemfile` строку `gem rack-test`
 - pipeline заработал
+- Кстати Environments  переехали в раздел Operations
 
 ### Делаем DEV-окружение
 - Переименовываем deploy в review
@@ -642,3 +643,27 @@ deploy_dev_job:
     name: dev
     url: http://dev.example.com
 ```
+- Добавляем в раздел `stages` пункты `stage` & `production`, и в дописываем описание стадий.
+- Добавляем диферениацию по тагам ( в кадую старию опцию `only:` с регекспом тэга )
+- Теперь, если коммит делается без тега, для него запускается ограниченный пайплайн, без stage и production окружений.
+- Так пушим с тегом:
+```
+git commit -a -m ‘#4 add logout button to profile page’
+git tag 2.4.10
+git push gitlab gitlab-ci-1 --tags
+```
+### Динамические окружения
+- Можно добавить динамическую генерацию окружений для каждой ветки, за исключением определенных (ниже например, кроме мастера):
+```
+branch review:
+   stage: review
+   script: echo "Deploy to $CI_ENVIRONMENT_SLUG"  
+   environment:
+     name: branch/$CI_COMMIT_REF_NAME    
+     url: http://$CI_ENVIRONMENT_SLUG.example.com  
+   only:
+     - branches   
+   except:
+     - master 
+```
+- Теперь каждая ветка кроме master будет определяться как овое окружение.
