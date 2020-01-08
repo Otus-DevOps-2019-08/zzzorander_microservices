@@ -769,3 +769,114 @@ docker push $USER_NAME/prometheus
 ## Мой dockerhub
 https://hub.docker.com/u/zedzzorander
 
+
+# monitoring-2
+
+## Подготовка окружения.
+- Чтобы не вводить много раз одно и то же в консоль, делаем Makefile в котором прописываем нужные команды из методички (создание docker-host, удаление docker-host):
+```
+dh-up: 
+	docker-machine create --driver google \
+	--google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts \
+	--google-machine-type n1-standard-1 \
+	--google-zone europe-west2-b \
+	docker-host;
+	docker-machine ip docker-host
+
+dh-destroy:
+	docker-machine rm -f docker-host
+
+.PHONY: env-proj dh-up dh-destroy
+```
+- Теперь чтобы поднять `docker-host` мы пишем `make dh-up` ( в zsh работает автодополнение команд из `Makefile`) и ждем завершения работы команды.
+
+## Мониторинг Docker контейнеров
+- Разделим наш docker-compose.yml на две части, чтобы следать расиво и разделить мониторинг приложения и само приложение. Теперь у нас два файла.
+- docker-compose.yml - с его помощью мы собираем само приложение.
+- docker-compose-monitoring.yml - с его помощью мы собираем мониторинг нашего приложения.
+### cAdvisor
+- Будем запускать в контейнере.
+- Добавляем в docker-compose-monitoring.yml информацию о новом контейнере.
+- Добавляем в конфигурацию prometheus описание нового сервиса.
+- Пересобираем образ Прометея, чтобы включить туда обновленный конфиг.
+```
+export USER_NAME=zedzzorander
+docker build -t $USER_NAME/prometeus .
+```
+- Запускаем сервисы:
+```
+docker-compose up -d
+docker-compose -f docker-compose-monitoring.yml up -d
+```
+- Добавляем правило для gcp firewall
+```
+gcloud compute firewall-rules create cadvisor  --allow tcp:8080    --target-tags=docker-machine    --description="Allow cAvisor connections" --direction=INGRESS 
+```
+- Заходим на страничку cAdvisor и поверяем как оно работает. Работает отлично.
+- Разглядываем встроенный в него функционал.
+- Проверяем, что метрики доступны по пути /metrics для сбора Prometheus
+- Проверяем, что Прометей собирает их с помощью инструмента запросов.
+
+## Grafana
+- Используется для виузализации данных из разных источников, например prometheus
+- Добавим новый сервис в docker-compose-monitoring.yml
+- Запускаем новый сервис `docker-compose -f docker-compose-monitoring.yml  up -d grafana`
+- Заходим в интерфейс графаны с указаным в конфиге логином и паролем, добавляем в него истчник данных в виде нашего  prometheus server
+- Скачиваем разработанных комьюнити дашборд, сохраняем в нашей репе (monitoring/grafana)
+- Загружаем сохраненное в графану, разглядываем его (дашборд)
+- Подключаем к мониторингу встроеные метрики приложения (описываем новый сервес в prometheus.yml и пересобираем образ)
+```
+docker build -t $USER_NAME/prometeus .
+```
+- Создам два дашборда в Grafana
+- Дашборд для мониторинга технических метрик (задержки, количество обращений, количество ошибко)
+- Дашборд с бизнес-логикой (количество постов и количество комментариев в час)
+- Сохраняем оба дашборда в папке monitoring/grafana
+
+## Alerting
+- Будем алертить через Alertmanager (Графана тоже может, но тут все по-взрослому)
+- Делаем директорию `monitoring/alertmanager`
+- Делаем в ней `Dockerfile`:
+```
+FROM prom/alertmanager:v0.14.0
+ADD config.yml /etc/alertmanager/
+
+```
+- Создаем файлик конфигурации, в котором настраиваем интеграцию с slack (в мой персональный тестовый канал)
+```
+global:
+  slack_api_url:
+    'https://hooks.slack.com/services/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'
+
+route:
+  receiver: 'slack-notification'
+
+receivers:
+- name: 'slack-notification'
+  slack_config:
+  - channel: '#anton_smirnov'
+```
+- Собираем образ alertmanager
+`docker build -t $USER_NAME/alertmanager . `
+- Добавляем новый сервис в `docker-compose-monitoring.yml`
+- Создаем файл alerts.yml в директории monitoring/prometheus в ктором будет настроен один алерт, который будет срабатывать. если однин из эндпоинтов будет не доступен.
+- Добавим этот файлик в Dockerfile prometheus.
+- Добавим информацию о правилах, в конфигурацию prometheus
+- Пересоберем образ Prometheus
+```
+docker build -t $USER_NAME/prometeus .
+```
+- Пересоздадим инфраструктуру мониторинга:
+```
+docker-compose -f docker-compose-monitoring.yml  down 
+docker-compose -f docker-compose-monitoring.yml  up -d 
+```
+- Алерты видны в интерфейсе Prometheus в разделе Alerts
+- Отключаем один из сервисов, и видим, что алерт сработал.
+
+## Завершение работы
+- Пушим наши образы на DockerHub
+- Удаляем виртуалку `make dh-destroy`
+
+## Мой DockerHub
+https://hub.docker.com/u/zedzzorander
