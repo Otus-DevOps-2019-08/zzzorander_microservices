@@ -61,6 +61,7 @@ services:
     image: ${USER_NAME}/alertmanager
     networks:
       - front_net
+      - back_net
     command:
       - '--config.file=/etc/alertmanager/config/yml'
     ports:
