@@ -58,12 +58,12 @@ services:
       - 3000:3000
 
   alertmanager:
-    image: ${USER_NAME}/alertmanager
+    image: ${USER_NAME}/alertmanager:latest
     networks:
       - front_net
       - back_net
     command:
-      - '--config.file=/etc/alertmanager/config/yml'
+      - '--config.file=/etc/alertmanager/config.yml'
     ports:
       - 9093:9093
 
