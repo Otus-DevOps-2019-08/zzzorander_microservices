@@ -7,5 +7,5 @@ route:
 
 receivers:
 - name: 'slack-notification'
-  slack_config:
+  slack_configs:
   - channel: '#anton_smirnov'
