@@ -667,3 +667,105 @@ branch review:
      - master 
 ```
 - Теперь каждая ветка кроме master будет определяться как новое окружение.
+
+# monitoring-1
+## Создаем docker-host и разворачиваем на нем прометеус
+```
+$ gcloud compute firewall-rules create prometheus-default --allow tcp:9090
+
+$ gcloud compute firewall-rules create puma-default --allow tcp:9292
+
+$ export GOOGLE_PROJECT=docker-259815
+
+# create docker host
+docker-machine create --driver google \
+    --google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts \
+    --google-machine-type n1-standard-1 \
+    --google-zone europe-west1-b \
+    docker-host
+
+# configure local env
+eval $(docker-machine env docker-host)
+
+$ docker run --rm -p 9090:9090 -d --name prometheus  prom/prometheus
+
+$ docker-machine ip docker-host
+
+$ docker stop prometheus
+```
+## Переупорядочиваем структуру репозитария
+- Создадим директорию docker в корне репозитория и перенесем в нее директорию docker-monolith и файлы docker-compose.* и все .env (.env должен быть в .gitgnore), в репозиторий закоммичен .env.example, из которого создается .env 
+- Создадим в корне репозитория директорию monitoring. В ней будет хранится все, что относится к мониторингу
+- Не забываем про .gitgnore и актуализируем записи при необходимости 
+P.S.С этого момента сборка сервисов отделена от docker-compose, поэтому инструкции build можно удалить из docker-compose.yml.
+- Создаем директорию monitoring/prometheus и в ней Dockerfile, с помощью которого мы сделаемсвой образ prometheus с нужными нам настройками.
+- В той же директори создаем prometheus.yml в котором описываем нашу конфигурацию.
+## Собираем наш собственный образ prometheus
+```
+export USER_NAME=zedzzorander
+docker build -t $USER_NAME/prometheus .
+```
+## Образы микросервисов
+- Билдим с помощью docker_build.sh расположенных в директории каждого микросервиса.
+- Собираем образы наших микросервисов(будем собирать из корня репозитория):
+```
+for i in ui post-py comment; do cd src/$i; bash docker_build.sh; cd -; done
+```
+- Добавляем новый сервис в docker/docker-compose.yml
+- Меняем все директивы build на image для остальных сервисов.
+## Ковыряем prometeus
+```
+docker-compose up -d
+```
+- Заходим на `35.205.90.68:9090` и `35.205.90.68:9292` - все работает
+- Смотрим на список эндпоинтов - все в статусе "ОК"
+- Настраиваем отображение метрик(ui_helth), смотрим графики.
+- Выключаем post - графики показывают, что все сломалось.
+- Включаем post - графики показывают, что все починилось.
+### Экспортеры
+- Экспортеры  - это агенты, которые позволяют получать метрики из чуждых пониманию гениальности prometeus и его подхода приложений.
+- Мы поставим экспортер в контейнер и дадим ему доступы к нужным файликам (docker-compose.yml)
+```
+node-exporter:
+    image: prom/node-exporter:v0.15.2
+    user: root
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'
+```
+- Добавим эндпоинт prometheus:
+```
+- job_name: 'node'
+    static_configs:
+        - targets:
+            - 'node-exporter:9100'
+```
+- Ребилдим образ prometheus
+```
+monitoring/prometheus $ docker build -t $USER_NAME/prometheus .
+```
+- Переинициализируем всю инфраструктуру
+```
+docker-compose down
+docker-compose up -d
+```
+- Заходим на страничку prometheus и наблюдаем новые эндпоинты и метрики.
+- Проверяем, что на графике отображается нагрузка если дать в шелле на docker-host `yes > /dev/null`
+## Загружаем наши образы на dockerhub
+```
+docker push $USER_NAME/ui
+docker push $USER_NAME/comment
+docker push $USER_NAME/post
+docker push $USER_NAME/prometheus
+```
+## Удаляем docker-host
+`docker-machine rm docker-host`
+
+## Мой dockerhub
+https://hub.docker.com/u/zedzzorander
+
