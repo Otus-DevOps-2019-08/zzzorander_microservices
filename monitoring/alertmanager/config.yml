@@ -1,0 +1,11 @@
+global:
+  slack_api_url:
+    'https://hooks.slack.com/services/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'
+
+route:
+  receiver: 'slack-notification'
+
+receivers:
+- name: 'slack-notification'
+  slack_configs:
+  - channel: '#anton_smirnov'
