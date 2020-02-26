@@ -918,9 +918,11 @@ docker-compose logs -f post
 ## Отправляем логи во флюент
 - Добавляем для сервися `post` внутри compose файла секцию `logging` с описанием драйвера и его опций.
 - Поднимаем инфраструктуру логирования:
- ```docker-compose -f docker-compose-logging.yml up -d
+ ```
+ docker-compose -f docker-compose-logging.yml up -d
  docker-compose down
- docker-compose up -d```
+ docker-compose up -d
+ ```
 - Создаем еще несколько постов в приложении.
 - Заходим в Kibana (5601 порт), жмем Disover
 - Вводим паттерн индекса и указываем поле времени, после чего создаем индекс маппинг.
