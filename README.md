@@ -1000,3 +1000,24 @@ environment:
 - Заходим в приложение и неистово обновляем пару раз главную страницу.
 - Переключаемся на Zipkin и видим трейсы - все отлично.
 
+# kubernetes-1
+## The Hard Way
+- Выполнять буду по модифицированной версии https://github.com/express42/kubernetes-the-hard-way которая предусматривает ограничение в 4 машины.
+- Никаких особый проблемм с разворачиванием кластера не получил.
+## Запуск приложений
+- Из корня репозитория делаем:
+```
+cd kubernetes/reddit
+kubectl apply -f .
+```
+- Проверяем, все ли запустилось:
+```
+kubectl get pods  
+NAME                                 READY   STATUS              RESTARTS   AGE
+comment-deployment-5d5ff968b-n9lp6   0/1     ContainerCreating   0          14s
+mongo-deployment-7754dbd44-vkdjt     0/1     ContainerCreating   0          13s
+post-deployment-5fcfb8b88-p55xl      0/1     ContainerCreating   0          13s
+ui-deployment-67fc684b4-m2jqd        0/1     ContainerCreating   0          12s
+```
+
+Все запустилось.
