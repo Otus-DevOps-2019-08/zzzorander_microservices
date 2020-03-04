@@ -274,7 +274,8 @@ docker run -d --network=reddit -p 9292:9292 --env POST_SERVICE_HOST=my-post --en
 ```
 - Работает!
 
-## HW images
+## HW 
+s
 - О - оптимизации. Перезаписываем  Dockerfile в папке src/ui/: `wget -O Dockerfile https://raw.githubusercontent.com/express42/otus-snippets/master/hw-16/%D0%A1%D0%B5%D1%80%D0%B2%D0%B8%D1%81%20ui%20-%20%D1%83%D0%BB%D1%83%D1%87%D1%88%D0%B0%D0%B5%D0%BC%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B7`
 - Пересобираем образ: 
 ```
@@ -880,3 +881,121 @@ docker-compose -f docker-compose-monitoring.yml  up -d
 
 ## Мой DockerHub
 https://hub.docker.com/u/zedzzorander
+
+# logging-1
+## Подготавливаем окружение
+- Я сделал файлик содержащий команды экспорта переменных окружения и назвал его `setenv`. Теперь чтобы установить все нужные переменные, я пишу в консоли `eval $(cat setenv)`
+- Я записал себе команды из гиста в `Makefile`, поэтому достаточно в корне репозитория сделать `make log-up` и дождаться создания машины в GCP
+- Указываю докеру с какой машиной сейчас работать выполнив `eval $(docker-machine env logging)`
+
+## Подготавливаем развертывание
+- Создаем отдельный `compose`- файл для системы логирования `docker/docker-compose-logging.yml`
+- Добавляем директорию `logging\fluentd` и добавляем туда файл со следующим содержимым:
+```
+FROM fluent/fluentd:v0.12
+RUN gem install fluent-plugin-elasticsearch --no-rdoc --no-ri --version 1.9.5
+RUN gem install fluent-plugin-grok-parser --no-rdoc --no-ri --version 1.0.0
+ADD fluent.conf /fluentd/etc
+```
+- В директории `logging/fluentd/` создаем  `fluentd.conf` и копируем туда содеримое из приложенного gist
+- Собираем docker image для fluentd:
+```
+docker build -t $USER_NAME/fluentd logging/fluentd
+```
+- Elasticsearch не стартует, пока не прописать ему `sysctl -w vm.max_map_count=262144`
+- С помощью чатика в slack были выяснены необходимые для работы параметры.
+- Обновлена версия elasticsearch и kibana в docker-compose до 7.5, после чего все заработало.
+
+## Разворачиваем приложение
+- Делаем `docker-compose up -d` 
+- Смотрим, что там с логами:
+```
+docker-compose logs -f post
+```
+- Заходим в наше приложение и делаем несколько постов.
+- Наблюдаем логи.
+
+## Отправляем логи во флюент
+- Добавляем для сервиса `post` внутри compose файла секцию `logging` с описанием драйвера и его опций.
+- Поднимаем инфраструктуру логирования:
+ ```
+ docker-compose -f docker-compose-logging.yml up -d
+ docker-compose down
+ docker-compose up -d
+ ```
+- Создаем еще несколько постов в приложении.
+- Заходим в Kibana (5601 порт), жмем Disсover
+- Вводим паттерн индекса и указываем поле времени, после чего создаем индекс-маппинг.
+- Изучаем логи, видим что некотрые поля складываются в одну сущность. Это сложно для понимания и фильтрации, надо исправлять
+
+## Fluentd filters
+- Добавляем правила парсигна логов post в конфиг fluentd
+```
+<filter service.post>
+@type parser
+format json
+key_name log
+</filter>
+```
+- Пересобираем образ и перезапускаем fluentd
+- Логи парсятся, теперь у нас много интересных полей
+
+## Неструктурированные логи
+- Добавляем парсинг неструктурированных логов:
+```
+<filter service.ui>
+  @type parser
+  format /\[(?<time>[^\]]*)\]  (?<level>\S+) (?<user>\S+)[\W]*service=(?<service>\S+)[\W]*event=(?<event>\S+)[\W]*(?:path=(?<path>\S+)[\W]*)?request_id=(?<request_id>\S+)[\W]*(?:remote_addr=(?<remote_addr>\S+)[\W]*)?(?:method= (?<method>\S+)[\W]*)?(?:response_status=(?<response_status>\S+)[\W]*)?(?:message='(?<message>[^\']*)[\W]*)?/
+  key_name log
+</filter>
+```
+- Пересоберем fluentd и перезапустим сервис
+- Все ок, логи парсятся.
+
+## Grok
+- Чтобы не путаться в регулярках, можно использовать Grok-шаблоны. По сути grokи - это именованые шаблоны регулярок. Можно использовать готовый регексп, как вот тут:
+```
+<filter service.ui>
+  @type parser
+  key_name log
+  format grok
+  grok_pattern %{RUBY_LOGGER}
+</filter>
+```
+- Их можно использовать по очереди (распарсим то, что еще не распарсилось после первого захода):
+```
+<filter service.ui>
+  @type parser
+  format grok
+  grok_pattern service=%{WORD:service} \| event=%{WORD:event} \| request_id=%{GREEDYDATA:request_id} \| message='%{GREEDYDATA:message}'
+  key_name message
+  reserve_data true
+</filter>
+```
+
+## Распределенная трассировка с Zipkin
+- Дописываем в `docker-compose-logging.yml` сервис zipkin:
+```
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - front_net
+      - back_net
+
+networks:
+  back_net:
+  front_net:
+```
+- Дописываем в `docker-compose.yml` переменные окнужения:
+```
+environment:
+    - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
+```
+- Дописываем в `.env` `ZIPKIN_ENABLED=true`
+- Делаем редеплой приложения
+- Открываем Zipkin и видим, что там совсем пусто.
+- Заходим в приложение и неистово обновляем пару раз главную страницу.
+- Переключаемся на Zipkin и видим трейсы - все отлично.
+

@@ -6,6 +6,8 @@ services:
       - post_db:/data/db
     networks:
       - back_net
+    environment:
+      - ZIPKIN_ENABLED=true
 
   ui:
     image: ${USER_NAME}/ui:${UI_VERSION}
@@ -13,23 +15,44 @@ services:
       - ${UI_PORT}/tcp
     networks:
       - front_net
+    environment:
+      - ZIPKIN_ENABLED=true
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: service.ui
 
   post:
-    image: ${USER_NAME}/post:${POST_VERSION}
+    image: ${USER_NAME}/post
     networks:
       - front_net
       - back_net
+    environment:
+      - POST_DATABASE_HOST=post_db
+      - POST_DATABASE=posts
+      - ZIPKIN_ENABLED=true
+    depends_on:
+      - post_db
+    ports:
+      - "5000:5000"
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: service.post
 
   comment:
     image: ${USER_NAME}/comment:${COMMENT_VERSION}
     networks:
       - front_net
       - back_net
-
+    environment:
+      - ZIPKIN_ENABLED=true
 
 volumes:
   post_db:
-  
+
 networks:
   front_net:
   back_net:
